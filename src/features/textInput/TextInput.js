@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import { selectText } from "../sentence/sentenceSlice";
 
@@ -8,16 +8,15 @@ export function TextInput() {
     const text = useSelector(selectText);
 
     const handleInput = (e) => {
-        // setUserInput(e.target.value);
-        console.log(e.keyCode);
-        processText();
+        // console.log(e.keyCode);
+        processText(e.target.value);
     };
 
-    const processText = () => {
+    const processText = (input) => {
         const splitText = text.split("");
-        const splitInput = userInput.split("");
+        const splitInput = input.split("");
 
-        if (userInput.length === 0) {
+        if (splitInput.length === 0) {
             setStatus(null);
         }
 
