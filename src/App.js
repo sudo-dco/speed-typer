@@ -1,99 +1,98 @@
 import React, { useState, useEffect } from "react";
-import { Sentence } from "./features/sentence/Sentence";
-import { useKeyPress } from "./hooks/useKeyPress";
-import axios from "axios";
+import { useSelector, useDispatch } from "react-redux";
+import Rooms from "./features/rooms/Rooms";
+import {
+    selectSentence,
+    incrementChar,
+    fetchSentence,
+} from "./features/sentence/sentenceSlice";
+import { downHandler, selectKey } from "./features/keypress/keypressSlice";
+import { setStart, calculate, selectWpm } from "./features/wpm/wpmSlice";
 
 function App() {
-    const [sentence, setSentence] = useState("");
-    const [preChars, setPreChars] = useState("");
-    const [postChars, setPostChars] = useState("");
-    const [currentChar, setCurrentChar] = useState();
-    const [textInput, setTextInput] = useState("");
+    const dispatch = useDispatch();
+
+    // sentence
+    const { loading, text, currentChar, preChars } = useSelector(
+        selectSentence
+    );
+
+    useEffect(() => {
+        if (loading === "idle") {
+            dispatch(fetchSentence());
+        }
+    }, [loading, dispatch]);
+
+    // keypress
+    const { key, totalTyped } = useSelector(selectKey);
 
     // wpm
-    const [startTime, setStartTime] = useState(null);
-    const [wpm, setWpm] = useState(0);
-    const currentTime = () => new Date().getTime();
+    const { grossWpm, startTime, accuracy } = useSelector(selectWpm);
 
     // incorrect text
     const [isRed, setIsRed] = useState(false);
 
-    useEffect(() => {
-        axios
-            .get("/sentence")
-            .then((response) => {
-                const sentence = response.data;
+    // const toggleColor = (status) => {
+    //     if (startTime !== null) {
+    //         if (status === true && isRed === false) {
+    //             setIsRed(true);
+    //         }
 
-                setSentence(sentence);
-                setCurrentChar(sentence[0]);
-                setPostChars(sentence.substring(1));
-            })
-            .catch((err) => {
-                console.log("error fetching sentence: ", err);
-            });
+    //         if (status === false && isRed === true) {
+    //             setIsRed(false);
+    //         }
+    //     }
+    // };
+
+    useEffect(() => {
+        const checkKey = ({ key }) => {
+            if (key.length === 1) {
+                dispatch(downHandler(key));
+            }
+        };
+
+        window.addEventListener("keydown", checkKey);
+
+        return () => {
+            window.removeEventListener("keydown", checkKey);
+        };
     }, []);
 
-    useEffect(() => {
-        if (startTime > 0 && textInput.length === sentence.length) {
-            const stopTime = currentTime();
-            const mins = (stopTime - startTime) / 60000;
-            const numOfChars = sentence.length;
-
-            const grossWpm = (numOfChars / 5 / mins).toFixed(2);
-            setWpm(grossWpm);
-        }
-    }, [textInput, sentence.length, startTime]);
-
-    const toggleColor = (status) => {
-        if (startTime !== null) {
-            if (status === true && isRed === false) {
-                setIsRed(true);
-            }
-
-            if (status === false && isRed === true) {
-                setIsRed(false);
-            }
-        }
-    };
-
-    let key = useKeyPress();
-    console.log(key);
-
-    // if key matches current char
+    // process key presses
     if (key === currentChar) {
-        // on first correct key press, start timer
-        if (startTime === null) {
-            setStartTime(currentTime());
+        if (startTime === 0) {
+            dispatch(setStart(new Date().getTime()));
         }
 
-        // remove incorrect class
-        toggleColor(false);
+        dispatch(incrementChar());
+    }
 
-        // append current char to prechars
-        setPreChars(preChars + currentChar);
-
-        // append to textinput
-        setTextInput(textInput + currentChar);
-
-        // get next current char from post char
-        setCurrentChar(postChars[0]);
-        setPostChars(postChars.substring(1));
-    } else if (key !== currentChar) {
-        toggleColor(true);
+    // calculate wpm when user finishes sentence
+    if (preChars.length === text.length && startTime > 0 && grossWpm === 0) {
+        dispatch(
+            calculate({
+                stopTime: new Date().getTime(),
+                length: text.length,
+                totalTyped,
+            })
+        );
     }
 
     return (
         <div className="App">
-            <div>{sentence}</div>
-            <div>Pre: {preChars}</div>
+            <Rooms />
+            <div>{text}</div>
             <input
                 type="text"
                 name="textInput"
-                value={textInput}
+                value={preChars}
                 size="100"
                 className={isRed ? "textbox animate-red" : "textbox"}
+                readOnly
             />
-            <div>WPM: {wpm}</div>
+            <div>
+                WPM: {grossWpm} / Accuracy: {accuracy}%
+            </div>
         </div>
     );
 }
